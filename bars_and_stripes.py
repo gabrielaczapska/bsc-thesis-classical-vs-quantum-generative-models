@@ -20,4 +20,3 @@ def get_bars_and_stripes(n):
     return np.vstack((stripes[0 : stripes.shape[0] - 1], bars[1 : bars.shape[0]]))
 
 data = get_bars_and_stripes(3)
-print(data)

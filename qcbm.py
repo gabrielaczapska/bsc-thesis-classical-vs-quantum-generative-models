@@ -225,11 +225,3 @@ for i, m in zip(preds[:64], mask[:64]):
 
     plt.xticks([])
     plt.yticks([])
-
-
-
-
-
-
-
-
