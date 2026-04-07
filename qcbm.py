@@ -201,8 +201,30 @@ def circuit(weights, n_layers, n_qubits):
     return qml.sample()
 
 
-#####
-# toDo finish defining the performance of the model
+# compute the chance of the model to create something meaningful (chi)
+for N in [2000, 20000]:
+    device = qml.device("default.qubit", wires=n_qubits)
+    circuit = qml.set_shots(qml.QNode(circuit, device), shots=N)
+    predictions = circuit(weights)
+    mask = np.any(np.all(predictions[:, None] == data, axis=2), axis=1)
+    chi = np.sum(mask) / N
+    print(f"Validity (chi) for N = {N}: {chi:.4f}")
+
+print(f"Chi for N = ∞: {np.sum(qcbm_probs[nums]):.4f}")
+
+## Visualisation of the patterns
+plt.figure(figsize=(8, 8))
+j = 1
+
+for i, m in zip(preds[:64], mask[:64]):
+    ax = plt.subplot(8, 8, j)
+    j += 1
+    plt.imshow(np.reshape(i, (n, n)), cmap="gray", vmin=0, vmax=1)
+    if ~m:
+        plt.setp(ax.spines.values(), color="red", linewidth=1.5)
+
+    plt.xticks([])
+    plt.yticks([])
 
 
 
