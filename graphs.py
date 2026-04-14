@@ -90,6 +90,55 @@ def plot_training_results(loss, kl_div):
 
     plt.show()
 
+
+# visualise the generated patterns with invalid patterns marked red
+def mark_invalid_patterns(preds, mask, N, n=3):
+    plt.figure(figsize=(8, 8))
+    j = 1
+    for i, m in zip(preds[:64], mask[:64]):
+        ax = plt.subplot(8, 8, j)
+        j += 1
+        plt.imshow(np.reshape(i, (n, n)), cmap="gray", vmin=0, vmax=1)
+        if ~m:
+            plt.setp(ax.spines.values(), color="red", linewidth=1.5)
+
+        plt.xticks([])
+        plt.yticks([])
+    plt.suptitle(f"Generated patterns for N = {N} shots (red = invalid)", fontsize=12)
+    plt.show()
+
+
+# compare the generated and target probability distributions
+def compare_px_and_py(qcbm_probs, probs, nums, bitstrings, size=9):
+    plt.figure(figsize=(12, 5))
+
+    plt.bar(
+        np.arange(2**size),
+        probs,
+        width=2.0,
+        label=r"$\pi(x)$",
+        alpha=0.4,
+        color="tab:green",
+    )
+
+    plt.bar(
+        np.arange(2**size),
+        qcbm_probs,
+        width=2.0,
+        label=r"$p_\theta(x)$",
+        alpha=0.9,
+        color="tab:red",
+    )
+
+    plt.xlabel("Samples")
+    plt.ylabel("Probability Distribution")
+    plt.suptitle(f"Comparison of generated and target distributions for N = {N} shots", fontsize=12)
+
+    plt.xticks(nums, bitstrings, rotation=45)
+    plt.legend(loc="upper right")
+    plt.subplots_adjust(bottom=0.3)
+    plt.show()
+
 # single sample call
 #data = get_bars_and_stripes(3)
 #sample = data[3].reshape(3,3)
