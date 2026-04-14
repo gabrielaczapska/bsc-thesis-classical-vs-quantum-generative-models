@@ -1,27 +1,25 @@
 import jax
 import jax.numpy as jnp
-from functools import partial
-import matplotlib.pyplot as plt
 import numpy as np
+from functools import partial
 import pennylane as qml
 import optax
-from scipy.special.cython_special import kl_div
-
-np.random.seed(81)
-
+from bars_and_stripes import *
+from graphs import *
 
 jax.config.update("jax_enable_x64", True)
+np.random.seed(81)
 
 class MMD:
     def __init__(self, scales, space):
+        gammas = 1 / (2 * (scales**2))
+        sq_dists = jnp.abs(space[:, None] - space[None, :]) ** 2
+        # measure the similarities between the datapoints considering different gamma values (levels of details)
+        self.K = sum(jnp.exp(-gamma * sq_dists) for gamma in gammas) / len(scales)
         self.scales = scales
-        gammas = 1 / (2 * (self.scales**2))
-        sq_dists = jnp.abs(space[:, None] - space[None, :] ** 2)
-        # measure the similarities between the datapoints considering different gamma values (level of detail)
-        self.K = sum(jnp.exp(-gammas[None, :] * sq_dists) for gamma in gammas) / len(scales)
 
     def k_expval(self, px, py):
-        # kernel expectation value - average similarity across px and py distributions considering different level of similarities (self.K)
+        # kernel expectation value - average similarity across px and py distributions given self.K
         return px @ self.K @ py
 
     def __call__(self, px, py):
@@ -30,198 +28,137 @@ class MMD:
 
 
 class QCBM:
-    def __init__(self, circuit, mmd, py):
-        # circuit - quantum algorithm expressed with quantum gates
-        self.circuit = circuit
+    def __init__(self, circ, mmd, py):
+        # quantum circuit expressed as a sequence of quantum gates
+        self.circ = circ
         self.mmd = mmd
         self.py = py
 
     @partial(jax.jit, static_argnums=0)
     def mmd_loss(self, params):
-        px = self.circuit(params)
+        px = self.circ(params)
         return self.mmd(px, self.py), px
 
 
-def represent_as_integers(data):
-    bitstrings = []
-    nums = []
+# Parametrised Quantum Circuit = Born Machine
+def construct_circuit(n_qubits=9, n_layers=6):
+    dev = qml.device("default.qubit", wires=n_qubits)
 
-    for d in data:
-        bitstrings += ["".join(str(int(i))) for i in d]
-        nums += [int(bitstrings[-1], 2)]
-    # output: [0, 292, 146, 438, 73, 365, 219, 448, 56, 504, 7, 455, 63, 511]
-    return bitstrings, nums
+    @qml.qnode(dev)
+    def circuit(weights):
+        qml.StronglyEntanglingLayers(weights=weights, ranges=[1] * n_layers, wires=range(n_qubits))
+        return qml.probs()
 
-
-def define_and_visualise_target_distributions(size, data):
-    # assign probabilities to each of 512 patterns that can be defined on 9 pixels
-    probs = jnp.zeros(2**size)
-    bitstrings, nums = represent_as_integers(data)
-    probs[nums] = 1 / len(data)
-
-    plt.figure(figsize=(12, 5))
-    plt.bar(np.arange(len(nums)), probs, width=2.0, label=r"$\pi(x)$")
-    plt.xticks(nums, bitstrings, rotation=45)
-
-    plt.xlabel("Pattern")
-    plt.ylabel("Probability Distribution")
-    plt.legend(loc="upper right")
-    plt.subplots_adjust(bottom=0.3)
-    plt.show()
-    return probs
+    return circuit
 
 
-def q_circuit_specifications(size):
-    # np.random.seed(42)
-    n_qubits = size
-    #device = qml.device("default.qubit", wires=n_qubits)
-
-    # nr of layers (the rows of parallel qubits) ~ depth; the more layers -> the higher the "expressibility"
-    n_layers = 6
-    wshape = qml.StronglyEntanglingLayers.shape(n_layers=n_layers, n_wires=n_qubits)
-    # randomise the matrix of weights in the circuit; it defines the rotation angles of the quantum gates
-    weights = np.random.random(size=wshape)
-    return weights, n_layers, n_qubits, wshape
-
-@qml.qnode(qml.device("default.qubit", wires=9))
-def circuit(size):
-    weights, n_layers, n_qubits, _ = q_circuit_specifications(size)
-    qml.StronglyEntanglingLayers(weights=weights, ranges=[1] * n_layers, wires=range(n_qubits))
-
-
-jit_circuit = jax.jit(circuit)
-
-
-# INITIALISATION
-bandwidth = jnp.array([0.25, 0.5, 1])
-# n_qubits -> 9
-space = jnp.arange(2 ** 9)
-mmd = MMD(bandwidth, space)
-# toDo correctly define size and data
-qcbm = QCBM(jit_circuit, mmd, define_and_visualise_target_distributions(size, data))
-
-weights, _, _, _ = circuit(size)
-opt = optax.adam(learning_rate=0.01)
-# opt_state - stores the internal state of the optimiser
-opt_state = opt.init(weights)
-
-# LOSSES CALCULATION
-# --
-# fill in
-# --
+def initialise_weights(n_qubits=9, n_layers=6):
+    w_shape = qml.StronglyEntanglingLayers.shape(n_layers=n_layers, n_wires=n_qubits)
+    return np.random.random(size=w_shape)
+    #return jnp.array(np.random.random(size=w_shape))
 
 
 # TRAINING
-# calculate loss, generated distribution and gradients that are used to set the direction and change the state of the opt
-# calculate the differences across the distributions with kl_div
-@jax.jit
-def update_step(params, opt_state):
+@partial(jax.jit, static_argnums=(2, 3))
+def update_step(params, opt_state, opt, qcbm):
     (loss_value, qcbm_probs), grads = jax.value_and_grad(qcbm.mmd_loss, has_aux=True)(params)
     updates, opt_state = opt.update(grads, opt_state)
     params = optax.apply_updates(params, updates)
 
     log_ratio = jnp.where(qcbm.py == 0, 0, jnp.log(qcbm_probs / qcbm.py))
-
     kl_div = -jnp.sum(qcbm.py * log_ratio)
 
     return params, opt_state, loss_value, kl_div
 
 
-def trace_100_update_steps(params, opt_state):
+def train(weights, opt_state, opt, qcbm, n_iterations=100, visualise=False):
     history = []
-    divergences = []
-    n_iterations = 100
+    divs = []
 
+    print(f"Training for {n_iterations} iterations:")
     for i in range(n_iterations):
-        weights, opt_state, loss_value, kl_div = update_step(params, opt_state)
+        weights, opt_state, loss_value, kl_div = update_step(weights, opt_state, opt, qcbm)
 
         if i % 10 == 0:
             print(f"Step: {i}, Loss: {loss_value:.4f}, KL-divergence: {kl_div:.4f}")
 
         history.append(loss_value)
-        divergences.append(kl_div)
+        divs.append(kl_div)
 
-    return history, divergences
+    if visualise:
+        plot_training_results(history, divs)
 
-
-# TRAINING VISUALISATION
-def visualise_training(params, opt_state):
-    history, divergences = trace_100_update_steps(params, opt_state)
-
-    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-
-    ax[0].plot(history)
-    ax[0].set_xlabel("Iteration")
-    ax[0].set_ylabel("MMD Loss")
-
-    ax[1].plot(divergences)
-    ax[1].set_xlabel("Iteration")
-    ax[1].set_ylabel("KL Divergence")
-
-    plt.show()
+    return weights, history, divs
 
 
-# COMPARISON OF GENERATED AND TARGET DISTRIBUTIONS
-# generated patterns are based on the weights (gate rotation angles); with probabilities being the output of the circuit
-def comparison(weights, size, probs, nums, bitstrings):
-    qcbm_probs = np.array(qcbm.circuit(weights))
+# # TESTING
+def build_sampling_circuit(n_qubits, n_layers):
+    dev = qml.device("default.qubit", wires=n_qubits)
 
-    plt.figure(figsize=(12, 5))
+    @qml.qnode(dev)
+    def sampling_circuit(weights):
+        qml.StronglyEntanglingLayers(weights=weights, ranges=[1] * n_layers, wires=range(n_qubits))
+        return qml.sample()
 
-    plt.bar(
-        np.arange(2**size),
-        probs,
-        width=2.0,
-        label=r"$\pi(x)$",
-        alpha=0.4,
-        color="tab:green",
-    )
-
-    plt.bar(
-        np.arange(2**size),
-        qcbm_probs,
-        width=2.0,
-        label=r"$p_\theta(x)$",
-        alpha=0.9,
-        color="tab:red",
-    )
-
-    plt.xlabel("Samples")
-    plt.ylabel("Probability Distribution")
-
-    plt.xticks(nums, bitstrings, rotation=45)
-    plt.legend(loc="upper right")
-    plt.subplots_adjust(bottom=0.3)
-    plt.show()
+    return sampling_circuit
 
 
-# TESTING
-def circuit(weights, n_layers, n_qubits):
-    qml.StronglyEntanglingLayers(weights=weights, ranges=[1] * n_layers, wires=range(n_qubits))
-    return qml.sample()
+def compute_chi_shots(weights, data, n_qubits, n_layers, n_shots):
+    s_circuit = build_sampling_circuit(n_qubits, n_layers)
+    circ = qml.set_shots(s_circuit, shots=n_shots)
+    preds = circ(weights)
+    mask = np.any(np.all(preds[:, None] == data, axis=2), axis=1)
+    return np.sum(mask) / n_shots, preds, mask
+
+def compute_chi_exact(qcbm_probs, nums):
+    return np.sum(qcbm_probs[nums])
 
 
-# compute the chance of the model to create something meaningful (chi)
-for N in [2000, 20000]:
-    device = qml.device("default.qubit", wires=n_qubits)
-    circuit = qml.set_shots(qml.QNode(circuit, device), shots=N)
-    predictions = circuit(weights)
-    mask = np.any(np.all(predictions[:, None] == data, axis=2), axis=1)
-    chi = np.sum(mask) / N
-    print(f"Validity (chi) for N = {N}: {chi:.4f}")
+def evaluate_chi(weights, data, qcbm_probs, nums, n_qubits, n_layers, shot_counts=[2000, 20000], visualise=False):
+    print("Evaluating Chi:")
+    for N in shot_counts:
+        chi, preds, mask = compute_chi_shots(weights, data, n_qubits, n_layers, N)
+        print(f"χ for N = {N}: {chi:.4f}")
+        if visualise:
+            mark_invalid_patterns(preds, mask, N)
+    print(f"χ for N = ∞: {compute_chi_exact(qcbm_probs, nums):.4f}")
 
-print(f"Chi for N = ∞: {np.sum(qcbm_probs[nums]):.4f}")
 
-## Visualisation of the patterns
-plt.figure(figsize=(8, 8))
-j = 1
 
-for i, m in zip(preds[:64], mask[:64]):
-    ax = plt.subplot(8, 8, j)
-    j += 1
-    plt.imshow(np.reshape(i, (n, n)), cmap="gray", vmin=0, vmax=1)
-    if ~m:
-        plt.setp(ax.spines.values(), color="red", linewidth=1.5)
+if __name__=="__main__":
+    n_qubits = 9
+    n_layers = 6
 
-    plt.xticks([])
-    plt.yticks([])
+    # probability distribution of the target patterns
+    probs = define_and_visualise_target_distributions()
+
+    data = get_bars_and_stripes(3)
+
+    bitstrings, nums = represent_as_integers()
+
+    # define bandwidth for scales def [MMD]
+    bandwidth = jnp.array([0.25, 0.5, 1])
+    space = jnp.arange(2 ** n_qubits)
+
+    weights = initialise_weights(n_qubits, n_layers)
+    circuit = construct_circuit(n_qubits, n_layers)
+    jit_circuit = jax.jit(circuit)
+
+    mmd = MMD(bandwidth, space)
+    qcbm = QCBM(jit_circuit, mmd, probs)
+
+    opt = optax.adam(learning_rate=0.1)
+    opt_state = opt.init(weights)
+
+    weights, history, divs = train(weights, opt_state, opt, qcbm, visualise=False)
+
+    qcbm_probs = np.array(qcbm.circ(weights))
+
+    evaluate_chi(weights, data, qcbm_probs, nums, n_qubits, n_layers, visualise=False)
+
+    # compare the probability distributions of generated patterns to target patterns
+    #compare_px_and_py(qcbm_probs, probs, nums, bitstrings)
+
+    # visualise the QCBM
+    #qml.draw_mpl(circuit, level="device")(weights)
+    #plt.show()
