@@ -76,6 +76,20 @@ def define_and_visualise_target_distributions(plotting=False, data=get_bars_and_
     return probs
 
 
+# plot the training results (QCBM)
+def plot_training_results(loss, kl_div):
+    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+
+    ax[0].plot(loss)
+    ax[0].set_xlabel("Iteration")
+    ax[0].set_ylabel("MMD Loss")
+
+    ax[1].plot(kl_div)
+    ax[1].set_xlabel("Iteration")
+    ax[1].set_ylabel("KL Divergence")
+
+    plt.show()
+
 # single sample call
 #data = get_bars_and_stripes(3)
 #sample = data[3].reshape(3,3)
