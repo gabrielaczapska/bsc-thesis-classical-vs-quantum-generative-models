@@ -1,59 +1,64 @@
-#import time
 import numpy as np
-#import torch.nn as nn
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
-#import torch
 from torch.utils.data import DataLoader, TensorDataset
 import os
 from datetime import datetime
 import torch
 import torch.nn as nn
-#import torchvision.utils as vutils
 from torch.utils.tensorboard import SummaryWriter
-from bars_and_stripes import get_bars_and_stripes
 
 
-
-
-# Function to create Bars and Stripes dataset
 def create_bars_and_stripes_dataset(num_samples):
-    samples = []
-    for _ in range(num_samples):
-        horizontal = np.random.randint(0, 2) == 0
-        if horizontal:
-            stripe = np.random.randint(0, 2, size=(2, 1))
-            sample = np.tile(stripe, (1, 2))
-        else:
-            stripe = np.random.randint(0, 2, size=(1, 2))
-            sample = np.tile(stripe, (2, 1))
-        samples.append(sample)
-    return np.array(samples, dtype=np.uint8)
+    # Generate all 14 valid patterns
+    n = 3
+    bitstrings = [list(np.binary_repr(i, n))[::-1] for i in range(2**n)]
+    bitstrings = np.array(bitstrings, dtype=int)
 
+    stripes = bitstrings.copy()
+    stripes = np.repeat(stripes, n, 0)
+    stripes = stripes.reshape(2**n, n * n)
 
+    bars = bitstrings.copy()
+    bars = bars.reshape(2**n * n, 1)
+    bars = np.repeat(bars, n, 1)
+    bars = bars.reshape(2**n, n * n)
 
-#dataset = get_bars_and_stripes(3)
+    all_patterns = np.vstack((stripes[0 : stripes.shape[0] - 1], bars[1 : bars.shape[0]]))
+    all_patterns = all_patterns.reshape(-1, n, n).astype(np.uint8)  # (14, 3, 3)
+
+    # Randomly sample num_samples from the 14 valid patterns
+    indices = np.random.randint(0, len(all_patterns), size=num_samples)
+    return all_patterns[indices]
+
 
 # Generate Bars and Stripes dataset
 dataset = create_bars_and_stripes_dataset(num_samples=1000)
+# np.set_printoptions(threshold=np.inf)
 print(dataset)
 
 
-
 # Plot images in a 3 by 3 grid
-def plot_nine_images(generated_images):
+def plot_all_patterns(generated_images):
     # Define custom colormap
     classiq_cmap = LinearSegmentedColormap.from_list(
         "teal_white", ["#00FF00", "black"]  # Green to black
     )
-    fig, axes = plt.subplots(3, 3, figsize=(6, 6))
+    fig, axes = plt.subplots(4, 4, figsize=(8, 8))
+
     for i, ax in enumerate(axes.flat):
-        ax.imshow(generated_images[i].reshape(2, 2), cmap=classiq_cmap, vmin=0, vmax=1)
+        if i >= len(generated_images):  # <-- FIX
+            ax.axis("off")
+            continue
+
+        image = generated_images[i].reshape(3, 3)
+        ax.imshow(image, cmap=classiq_cmap, vmin=0, vmax=1)
         ax.axis("off")
-        ax.set_title(f"Image {i+1}")
-        for j in range(2):
-            for k in range(2):
-                label = int(generated_images[i].reshape(2, 2)[j, k])
+        ax.set_title(f"Image {i + 1}")
+
+        for j in range(3):
+            for k in range(3):
+                label = int(image[j, k])
                 ax.text(
                     k,
                     j,
@@ -63,17 +68,14 @@ def plot_nine_images(generated_images):
                     color="white" if label == 1 else "black",
                     fontsize=16,
                 )
+
     plt.tight_layout()
     plt.show()
 
 
-# Generate images
-# generated_images = create_bars_and_stripes_dataset(9)
-# plot_nine_images(generated_images)
 
-
-# torch.manual_seed(42)
-# np.random.seed(42)
+# torch.manual_seed(81)
+# np.random.seed(81)
 
 # Create DataLoader for training
 tensor_dataset = TensorDataset(torch.tensor(dataset, dtype=torch.float))
@@ -81,7 +83,7 @@ dataloader = DataLoader(tensor_dataset, batch_size=64, shuffle=True)
 
 
 class Generator(nn.Module):
-    def __init__(self, input_size=2, output_size=4, hidden_size=32):
+    def __init__(self, input_size=2, output_size=9, hidden_size=32):
         super(Generator, self).__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size // 2),  # Adjusted hidden layer size
@@ -97,7 +99,7 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_size=4, hidden_size=16):
+    def __init__(self, input_size=9, hidden_size=16):
         super(Discriminator, self).__init__()
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_size // 2),  # Adjusted hidden layer size
@@ -223,7 +225,7 @@ gen_data = generator(z)
 def evaluate_generator(samples):
     count_err = 0
     for img in samples:
-        img = img.reshape(2, 2)
+        img = img.reshape(3, 3)
         diag1 = int(img[0, 0]) * int(img[1, 1])
         diag2 = int(img[0, 1]) * (int(img[1, 0]))
         if (diag1 == 1 or diag2 == 1) and diag1 * diag2 != 1:
@@ -245,5 +247,5 @@ with torch.no_grad():
 
 # Plot images in a 3 by 3 grid
 generated_images = create_bars_and_stripes_dataset(9)
-plot_nine_images(generated_images)
+plot_all_patterns(generated_images)
 
