@@ -1,0 +1,6 @@
+numpy
+pennylane
+torch
+matplotlib
+jax
+optax
