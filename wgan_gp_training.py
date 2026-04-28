@@ -1,5 +1,5 @@
 from bars_and_stripes import *
-from training_losses import *
+from wgan_gp_training_losses import *
 import time
 
 
