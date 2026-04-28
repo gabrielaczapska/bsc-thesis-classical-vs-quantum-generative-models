@@ -1,9 +1,19 @@
 import matplotlib.pyplot as plt
 from bars_and_stripes import *
+import numpy as np
 
 
-# plot a single k-th sample
 def single_sample_plot(k):
+    """
+    Plot a single 3x3 binary sample from a flat tensor or array.
+    """
+    if hasattr(k, "detach"):  # torch tensor
+        k = k.detach().cpu().numpy()
+    else:
+        k = np.asarray(k)
+
+    k = k.reshape(3, 3)
+
     plt.figure(figsize=(2,2))
     plt.imshow(k, cmap='gray', vmin=0, vmax=1)
     plt.grid(color='gray', linewidth=2)
@@ -12,7 +22,7 @@ def single_sample_plot(k):
 
     for i in range(3):
         for j in range(3):
-            # show the numerical values on the pixels
+            # display numerical values on the pixels
             text = plt.text(
                 i,
                 j,
@@ -22,48 +32,51 @@ def single_sample_plot(k):
                 color="grey",
                 fontsize=12,
             )
-
     plt.show()
-    print(f"\nSample bitstring: {''.join(np.array(k.flatten(), dtype='str'))}")
 
 
-# plot full dataset
 def all_patterns_plots(patterns):
+    """
+    Plot all valid 3x3 bars-and-stripes patterns.
+    """
     plt.figure(figsize=(4,4))
-    subplot_idx = 1
-    for i in patterns:
+
+    for subplot_idx, pattern in enumerate(patterns, start=1):
+        sample = np.asarray(pattern).reshape(3, 3)
+
         plt.subplot(4, 4, subplot_idx)
-        sample = np.reshape(i, (3, 3))
-        plt.imshow(np.reshape(i,(3, 3)), cmap='gray', vmin=0, vmax=1)
-        # show the numerical values on the pixels
+        plt.imshow(sample, cmap="gray", vmin=0, vmax=1)
+
+        # display numerical values on the pixels
         for row in range(3):
             for col in range(3):
                 plt.text(
                     col,
                     row,
-                    sample[row, col],
+                    int(sample[row, col]),
                     ha="center",
                     va="center",
                     color="gray",
                     fontsize=8,
                 )
-        plt.grid(color='gray', linewidth=2)
+
+        plt.grid(color="gray", linewidth=2)
         plt.xticks([])
         plt.yticks([])
-        subplot_idx += 1
-
     plt.show()
 
 
-# visualise the distribution of all target patterns
-def define_and_visualise_target_distributions(plotting=False, data=get_bars_and_stripes(3), n_pixels=9):
-    # assign probabilities to each of 512 patterns that can be defined on 9 pixels
+def define_and_visualise_target_distributions(plotting=False, data=make_bars_and_stripes(3), n_pixels=9):
+    """
+    Define and optionally visualise the target distribution over all 2^n_pixels
+    possible patterns (512 patterns for n_pixels = 9).
+    """
     probs = np.zeros(2**n_pixels)
     bitstrings, nums = represent_as_integers(data)
     probs[nums] = 1 / len(data)
 
     if plotting:
-        plt.figure(figsize=(12, 5))
+        plt.figure(figsize=(20, 8))
         plt.bar(np.arange(2**n_pixels), probs, width=2.0, label=r"$\pi(x)$")
         plt.xticks(nums, bitstrings, rotation=45)
 
@@ -76,8 +89,12 @@ def define_and_visualise_target_distributions(plotting=False, data=get_bars_and_
     return probs
 
 
-# plot the training results (QCBM)
 def plot_training_results(loss, kl_div):
+    """
+    Plot training metrics over iterations.
+
+    Displays MMD loss and KL divergence across training iterations (for QCBM model).
+    """
     fig, ax = plt.subplots(1, 2, figsize=(12, 5))
 
     ax[0].plot(loss)
@@ -91,8 +108,12 @@ def plot_training_results(loss, kl_div):
     plt.show()
 
 
-# visualise the generated patterns with invalid patterns marked red
-def mark_invalid_patterns(preds, mask, N, n=3):
+def mark_invalid_patterns(preds, mask, N=None, n=3):
+    """
+    Visualises generated patterns and highlights invalid ones in red.
+
+    :param n: dimension of each pattern (n x n)
+    """
     plt.figure(figsize=(8, 8))
     j = 1
     for i, m in zip(preds[:64], mask[:64]):
@@ -100,17 +121,23 @@ def mark_invalid_patterns(preds, mask, N, n=3):
         j += 1
         plt.imshow(np.reshape(i, (n, n)), cmap="gray", vmin=0, vmax=1)
         if ~m:
-            plt.setp(ax.spines.values(), color="red", linewidth=1.5)
+            plt.setp(ax.spines.values(), color="red", linewidth=3)
 
         plt.xticks([])
         plt.yticks([])
-    plt.suptitle(f"Generated patterns for N = {N} shots (red = invalid)", fontsize=12)
+    if N is not None:
+        plt.suptitle(f"Generated patterns ({N} shots, red = invalid)", fontsize=12)
     plt.show()
 
 
-# compare the generated and target probability distributions
 def compare_px_and_py(qcbm_probs, probs, nums, bitstrings, size=9):
-    plt.figure(figsize=(12, 5))
+    """
+    Compare generated and target distributions over all 2^(size patterns).
+
+    Overlays the learned distribution p_theta(x) and target distribution pi(x),
+    defined on the full pattern space.
+    """
+    plt.figure(figsize=(20, 8))
 
     plt.bar(
         np.arange(2**size),
@@ -132,20 +159,9 @@ def compare_px_and_py(qcbm_probs, probs, nums, bitstrings, size=9):
 
     plt.xlabel("Samples")
     plt.ylabel("Probability Distribution")
-    plt.suptitle(f"Comparison of generated and target distributions for N = {N} shots", fontsize=12)
-
     plt.xticks(nums, bitstrings, rotation=45)
     plt.legend(loc="upper right")
     plt.subplots_adjust(bottom=0.3)
     plt.show()
 
-# single sample call
-#data = get_bars_and_stripes(3)
-#sample = data[3].reshape(3,3)
-#single_sample_plot(sample)
 
-# all patterns visualisation
-#all_patterns_plots(data)
-
-# visualisation of probability distribution for all target patterns
-#probs = define_and_visualise_target_distributions(plotting=False)
