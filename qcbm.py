@@ -142,7 +142,7 @@ def train(weights, opt_state, opt, qcbm, n_iterations=1500, visualise=False):
         weights, opt_state, loss_value, kl_div = update_step(weights, opt_state, opt, qcbm)
 
         if i % 100 == 0:
-            print(f"Step: {i}, Loss: {loss_value:.4f}, KL-divergence: {kl_div:.4f}")
+            print(f"Step: {i}, MMD Loss: {loss_value:.4f}, KL-divergence: {kl_div:.4f}")
 
         history.append(loss_value)
         divs.append(kl_div)
