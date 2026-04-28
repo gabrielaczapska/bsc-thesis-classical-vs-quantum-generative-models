@@ -1,8 +1,8 @@
 import torch.nn as nn
 import torch.optim as optim
 from bars_and_stripes import *
-from training_losses import *
-from training import *
+from wgan_gp_training_losses import *
+from wgan_gp_training import *
 from evaluation import *
 
 
