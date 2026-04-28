@@ -46,39 +46,39 @@ data_2d = make_bars_and_stripes(3).to(device)
 data = data_2d.view(-1, 9).float()
 
 
-# Quantum generator circuit
-# Define PennyLane simulator device with n_qubits wires
+# Define a quantum simulator device with n_qubits wires
 dev = qml.device("default.qubit", wires=n_qubits)
 
+# Connect a quantum circuit to a quantum device using qml.qnode
 @qml.qnode(dev, interface="torch", diff_method="backprop")
 def quantum_generator_circuit(z_in, weights):
     """
     Quantum circuit used inside the generator.
 
-    The input latent features are encoded as rotation angles. Trainable quantum
-    layers are then applied, and Pauli-Z expectation values are returned as
-    quantum features.
+    The input is encoded as rotation angles, followed by trainable quantum layers and entanglement.
+    The final state of each qubit is measured in Z-basis, yielding one expectation value per qubit in [-1, 1],
+    used as a feature.
 
-    :param z_in: latent angle vector of length n_qubits
-    :param weights: trainable quantum circuit parameters
-    :return: list of Pauli-Z expectation values, one per qubit
+    :param z_in: rotation angle vector (one angle per qubit), derived from latent noise
+    :param weights: trainable parameters controlling the quantum layers
+    :return: list of expectation values (Pauli-Z), one per qubit
     """
-    # Encode classical latent features into qubit rotations
+    # Encode classical latent features as rotations on each qubit
     for i in range(n_qubits):
         qml.RY(z_in[i], wires=i)
 
-    # Apply trainable quantum layers
+    # Single qubit rotations (learnable)
     for layer in range(n_q_layers):
         for i in range(n_qubits):
             qml.RY(weights[layer, i, 0], wires=i)
             qml.RZ(weights[layer, i, 1], wires=i)
 
-        # Entangle neighbouring qubits
+        # Entangle qubits
         for i in range(n_qubits - 1):
             qml.CNOT(wires=[i, i + 1])
         qml.CNOT(wires=[n_qubits - 1, 0])
 
-    # Return one expectation value per qubit
+    # Measure each qubit
     return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
 
 
@@ -86,34 +86,34 @@ class QGenerator(nn.Module):
     """
     Hybrid quantum-classical generator.
 
-    A classical network maps latent noise to quantum circuit angles. The quantum circuit produces features,
-    which are then mapped by another classical network to a generated 3x3 pattern.
+    A classical network maps latent noise to quantum circuit angles. The quantum circuit then produces quantum features,
+    which are then mapped by another classical network to a generated, flattened 3x3 pattern.
 
     :param z_dim: dimension of the latent noise vector
-    :param hidden_dim: hidden layer size for classical networks
-    :param x_dim: output dimension of generated samples
+    :param hidden_dim: hidden layer size in the classical networks
+    :param x_dim: output size
     """
     def __init__(self, z_dim, hidden_dim, x_dim):
         super().__init__()
 
-        # Trainable quantum circuit parameters
+        # Trainable parameters used inside the quantum circuit
         self.weights = nn.Parameter(0.01 * torch.randn(n_q_layers, n_qubits, 2))
 
-        # Map latent noise to n_qubits circuit input angles
+        # Map latent noise to one rotation angle per qubit
         self.latent_proj = nn.Sequential(nn.Linear(z_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, n_qubits))
 
-        # Map quantum features to raw outputs before sigmoid
+        # Map quantum features to raw, flattened outputs before sigmoid
         self.head = nn.Sequential(nn.Linear(n_qubits, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, x_dim))
 
     def forward(self, z):
         """
-        Generate samples from latent noise.
+        Generate flattened samples from latent noise.
         """
         # Convert latent noise into circuit angles
-        angles = self.latent_proj(z)           # [B, n_qubits]
+        angles = self.latent_proj(z)
         angles = torch.tanh(angles) * torch.pi
 
-        # Run a single quantum circuit evaluation
+        # Run the quantum circuit once per sample in the batch
         q_features = []
         for i in range(angles.size(0)):
             q_out = quantum_generator_circuit(angles[i], self.weights)
@@ -126,18 +126,20 @@ class QGenerator(nn.Module):
         # Stack quantum features
         q_features = torch.stack(q_features, dim=0)
 
-        # Convert quantum features into pattern probabilities
+        # Convert quantum features into raw output values
         x = self.head(q_features)
 
+        # Squash outputs to [0, 1], interpretable as pixel probabilities
         return torch.sigmoid(2.0 * x)
 
 
 class Critic(nn.Module):
     """
-    WGAN critc.
+    WGAN critic that assigns a real-valued score to each sample.
     """
     def __init__(self, x_dim, hidden_dim):
         super().__init__()
+        # Small neural network that maps each pattern to one critic score
         self.net = nn.Sequential(
             nn.Linear(x_dim, hidden_dim),
             nn.LeakyReLU(0.2),
