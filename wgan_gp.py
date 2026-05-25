@@ -35,9 +35,8 @@ c_hidden = 64
 
 mod = 100
 
-data_2d = make_bars_and_stripes(3).to(device)
-data = data_2d.view(-1, 9)
-
+data_2d = make_bars_and_stripes(3).to(device=device, dtype=torch.float32)
+data = data_2d.view(-1, 9).float()
 
 # Generator
 class Generator(nn.Module):
