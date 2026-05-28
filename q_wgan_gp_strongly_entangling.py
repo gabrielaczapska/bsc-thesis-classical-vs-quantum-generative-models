@@ -101,11 +101,11 @@ class QuantumGenerator(nn.Module):
         # Trainable quantum parameters inside the quantum circuit
         self.q_weights = nn.Parameter(0.01 * torch.randn(n_layers, n_qubits, 3, dtype=torch.float32))
 
-        # Classical postprocessing: map quantum outputs -> 32 hidden features -> ReLU -> 9 values (flattened 3×3 image)
+        # Classical postprocessing: map quantum outputs -> 64 hidden features -> ReLU -> 9 values (flattened 3×3 image)
         self.post = nn.Sequential(
-            nn.Linear(n_qubits, 32),
+            nn.Linear(n_qubits, 64),
             nn.ReLU(),
-            nn.Linear(32, x_dim)
+            nn.Linear(64, x_dim)
         )
 
     def forward(self, z):
