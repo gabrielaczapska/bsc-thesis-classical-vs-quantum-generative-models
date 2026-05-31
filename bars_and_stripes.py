@@ -45,18 +45,6 @@ def make_bars_and_stripes(n=3):
     return data
 
 
-def sample_real_batch(data, batch_size):
-    """
-    Randomly sample a mini-batch from the real dataset.
-
-    :param data: Tensor containing real data samples
-    :param batch_size: Number of samples to draw
-    :return: Tensor containing the sampled batch
-    """
-    idx = torch.randint(0, data.size(0), (batch_size,))
-    return data[idx]
-
-
 def represent_as_integers(data=make_bars_and_stripes(3)):
     """
     Produce the integer representation of each valid Bars and Stripes pattern.
