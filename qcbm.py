@@ -8,11 +8,11 @@ import optax
 import pennylane as qml
 import torch
 from bars_and_stripes import *
-from evaluation import *
-from graphs import *
+from evaluation_wgan_gp import *
+from plotting import *
 
-# keep 32-bit precision
-jax.config.update("jax_enable_x64", False)
+# enable 64-bit precision
+jax.config.update("jax_enable_x64", True)
 
 
 class MMD:
@@ -194,8 +194,7 @@ def total_variation_to_uniform_from_counts(counts, true_patterns, num_samples):
     return 0.5 * torch.abs(empirical - uniform).sum().item(), empirical
 
 
-def evaluate_qcbm_like_wgan(weights, target_patterns, n_qubits, n_layers, num_samples=5000,
-    top_k_invalid=10, show_flat_patterns=False):
+def evaluate_qcbm_like_wgan(weights, target_patterns, n_qubits, n_layers, num_samples=5000):
     """
     Evaluate the QCBM using the same evaluation metrics as WGAN-GP models.
     """
@@ -229,8 +228,6 @@ def evaluate_qcbm_like_wgan(weights, target_patterns, n_qubits, n_layers, num_sa
     print(f"Total valid samples:   {total_valid} ({valid_ratio:.4f})")
     print(f"Total invalid samples: {total_invalid} ({invalid_ratio:.4f})")
 
-    chi_metric = chi_metric_to_uniform(counts, true_patterns, num_samples)
-    print(f"Chi metric to uniform valid distribution: {chi_metric:.6f}")
 
     tv, empirical = total_variation_to_uniform_from_counts(
         counts,
@@ -244,60 +241,6 @@ def evaluate_qcbm_like_wgan(weights, target_patterns, n_qubits, n_layers, num_sa
     for i, p in enumerate(empirical.tolist(), start=1):
         print(f"pattern {i}: {p:.4f}")
 
-    kl_metric = kl_divergence_to_uniform(valid_counts, true_patterns)
-    print(f"\nKL divergence over valid support: {kl_metric:.6f}")
-
-    if show_flat_patterns:
-        print("\nValid Pattern Frequencies:")
-        for i, pattern in enumerate(sorted(true_set), start=1):
-            c = valid_counts.get(pattern, 0)
-            p = c / num_samples
-            print(f"\nPattern {i}: count={c}, prob={p:.4f}")
-            print(torch.tensor(pattern))
-
-        if invalid_counts:
-            print("\nInvalid Patterns (top by frequency):")
-            for i, (pattern, c) in enumerate(sorted(invalid_counts.items(), key=lambda x: -x[1])[:top_k_invalid], start=1):
-                print(f"\nInvalid {i}: count={c}, prob={c / num_samples:.4f}")
-                print(torch.tensor(pattern))
-
-
-def compute_chi_shots(weights, data, n_qubits, n_layers, n_shots):
-    """
-    Estimate chi using finite-shot sampling.
-    Chi is the fraction of generated samples that are valid target patterns.
-    """
-    s_circuit = build_sampling_circuit(n_qubits, n_layers)
-    circ = qml.set_shots(s_circuit, shots=n_shots)
-
-    preds = circ(weights)
-    mask = np.any(np.all(preds[:, None] == data, axis=2), axis=1)
-
-    return np.sum(mask) / n_shots, preds, mask
-
-
-def compute_chi_exact(qcbm_probs, nums):
-    """
-    Compute exact chi from the full generated probability distribution.
-    """
-    return np.sum(qcbm_probs[nums])
-
-
-def evaluate_chi(weights, data, qcbm_probs, nums, n_qubits, n_layers, shot_counts=(2000, 20000), visualise=False):
-    """
-    Evaluate chi using both finite-shot sampling and exact probabilities.
-    """
-    data = np.asarray(data, dtype=float)
-
-    print("\nEvaluating Chi:")
-    for n_shots in shot_counts:
-        chi, preds, mask = compute_chi_shots(weights, data, n_qubits, n_layers, n_shots)
-        print(f"χ for N = {n_shots}: {chi:.4f}")
-
-        if visualise:
-            mark_invalid_patterns(preds, mask, N=n_shots)
-
-    print(f"χ for N = ∞: {compute_chi_exact(qcbm_probs, nums):.4f}")
 
 
 if __name__ == "__main__":
@@ -333,6 +276,5 @@ if __name__ == "__main__":
 
     # Evaluation
     qcbm_probs = np.array(qcbm.circ(weights))
-    evaluate_qcbm_like_wgan(weights, data, n_qubits, n_layers, num_samples, show_flat_patterns=False)
-    evaluate_chi(weights, data, qcbm_probs, nums, n_qubits, n_layers, visualise=True)
-    compare_px_and_py(qcbm_probs, probs, nums, bitstrings)
+    evaluate_qcbm_like_wgan(weights, data, n_qubits, n_layers, num_samples)
+  #  compare_px_and_py(qcbm_probs, probs, nums, bitstrings)

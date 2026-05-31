@@ -1,9 +1,9 @@
 from bars_and_stripes import *
-from wgan_gp_training_losses import *
+from losses_functions_wgan_gp import *
 import time
 
 
-def train(C, G, epochs, n_critic, data, critic_batch_size, generator_batch_size, z_dim, device, lambda_gp, lambda_struct,mod, lambda_div, lambda_uniform, c_opt, g_opt):
+def train(C, G, epochs, n_critic, data, critic_batch_size, generator_batch_size, z_dim, device, lambda_gp, lambda_struct, lambda_div, lambda_uniform, print_every, c_opt, g_opt):
     """
     Purpose:
     Train a WGAN-GP generator and discriminator on the bars-and-stripes dataset.
@@ -16,7 +16,7 @@ def train(C, G, epochs, n_critic, data, critic_batch_size, generator_batch_size,
     :param z_dim: number of latent dimensions in the generator input
     :param lambda_gp: weight for the gradient penalty term
     :param lambda_struct: weight for the structure loss term
-    :param mod: interval (in epochs) at which training statistics are printed
+    :param print_every: interval (in epochs) at which training statistics are printed
     :param lambda_div: weight for the diversity loss term
     :param lambda_uniform: weight for the uniformity loss term
     :param c_opt: optimiser for the critic
@@ -46,7 +46,7 @@ def train(C, G, epochs, n_critic, data, critic_batch_size, generator_batch_size,
             gp = gradient_penalty(C, real_samples, fake_samples)
 
             # critic loss (minimised) -
-            c_loss = c_fake.mean() - c_real.mean() + lambda_gp * gp
+            c_loss = -wasserstein_est + lambda_gp * gp
 
             # reset gradients
             c_opt.zero_grad()
@@ -76,7 +76,7 @@ def train(C, G, epochs, n_critic, data, critic_batch_size, generator_batch_size,
         g_opt.step()
 
         # training diagnostics
-        if epoch % mod == 0:
+        if epoch % print_every == 0:
             print(
                 f"Epoch {epoch:5d}, "
                 f"C_loss={c_loss.item():.4f}, "
