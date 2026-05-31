@@ -10,7 +10,7 @@ def make_bars_and_stripes(n=3):
 
     For n=3, this produces 14 patterns.
 
-    :param n: The size of the pattern grid, where each pattern has a shape of nxn
+    :param n: Size of the pattern grid, where each pattern has a shape of nxn
     :return: torch.Tensor of shape (num_patterns, n*n) containing all valid patterns flattened to vectors
     """
     patterns = []
