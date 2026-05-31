@@ -1,5 +1,8 @@
-import torch
+"""
+Generate valid Bars and Stripes patterns for training and evaluation.
+"""
 
+import torch
 
 def make_bars_and_stripes(n=3):
     """
@@ -39,7 +42,6 @@ def make_bars_and_stripes(n=3):
 
     data = torch.stack(unique)
     data = data.view(-1, n * n).float()
-
     return data
 
 
@@ -70,5 +72,5 @@ def represent_as_integers(data=make_bars_and_stripes(3)):
     for d in data:
         bitstrings += ["".join(str(int(i)) for i in d)]
         nums += [int(bitstrings[-1], 2)]
-    # nums: [0, 292, 146, 438, 73, 365, 219, 448, 56, 504, 7, 455, 63, 511]
+    # Nums: [0, 292, 146, 438, 73, 365, 219, 448, 56, 504, 7, 455, 63, 511]
     return bitstrings, nums
