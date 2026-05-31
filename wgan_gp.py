@@ -44,7 +44,6 @@ data_2d = make_bars_and_stripes(n).to(device=device, dtype=torch.float32)
 # Flattened dataset for neural network input
 data = data_2d.view(-1, x_dim)
 
-
 # Generator
 class Generator(nn.Module):
     """Generator network for producing Bars and Stripes patterns."""
@@ -81,7 +80,7 @@ class Critic(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-
+      
 if __name__ == "__main__":
     G = Generator(z_dim, g_hidden, x_dim).to(device)
 

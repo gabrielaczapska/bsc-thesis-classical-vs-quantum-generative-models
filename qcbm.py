@@ -11,8 +11,8 @@ from bars_and_stripes import *
 from evaluation import *
 from graphs import *
 
-# enable 64-bit precision
-jax.config.update("jax_enable_x64", True)
+# keep 32-bit precision
+jax.config.update("jax_enable_x64", False)
 
 
 class MMD:
