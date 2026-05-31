@@ -5,6 +5,7 @@ Train and evaluate a WGAN-GP model on the 3x3 Bars and Stripes dataset.
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 from bars_and_stripes import make_bars_and_stripes
 from training_wgan_gp import train
 from evaluation_wgan_gp import evaluate_generated_distribution, total_variation
@@ -41,6 +42,7 @@ print_every = 100
 
 # Dataset in n x n grid form
 data_2d = make_bars_and_stripes(n).to(device=device, dtype=torch.float32)
+
 # Flattened dataset for neural network input
 data = data_2d.view(-1, x_dim)
 
@@ -51,6 +53,7 @@ class Generator(nn.Module):
 
     def __init__(self, z_dim, hidden_dim, x_dim):
         super().__init__()
+
         self.net = nn.Sequential(
             nn.Linear(z_dim, hidden_dim),
             nn.ReLU(),
@@ -70,6 +73,7 @@ class Critic(nn.Module):
 
     def __init__(self, x_dim, hidden_dim):
         super().__init__()
+
         self.net = nn.Sequential(
             nn.Linear(x_dim, hidden_dim),
             nn.LeakyReLU(0.2),
@@ -79,13 +83,14 @@ class Critic(nn.Module):
         )
 
     def forward(self, x):
+        """Compute critic scores for a batch of samples."""
         return self.net(x)
 
       
 if __name__ == "__main__":
-    G = Generator(z_dim, g_hidden, x_dim).to(device)
+    G = Generator(z_dim=z_dim, hidden_dim=g_hidden, x_dim=x_dim).to(device)
 
-    C = Critic(x_dim, c_hidden).to(device)
+    C = Critic(x_dim=x_dim, hidden_dim=c_hidden).to(device)
 
     g_opt = optim.Adam(G.parameters(), lr=lr_g, betas=(0.5, 0.9))
     c_opt = optim.Adam(C.parameters(), lr=lr_c, betas=(0.5, 0.9))

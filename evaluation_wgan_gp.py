@@ -1,8 +1,7 @@
 from collections import Counter
 import torch
 
-
-def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_samples=5000,threshold=0.5):
+def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_samples,threshold=0.5):
     """
     Evaluates how well generator G covers the target patterns by sampling from G, binarising the output and comparing
     the generated patterns against the target patterns.
@@ -16,10 +15,7 @@ def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_sampl
 
     G.eval()
 
-    with torch.no_grad():
-        # sampling
-        z = torch.randn(num_samples, z_dim, device=device)
-        samples = ((G(z) > threshold).float().cpu())
+    num_samples = len(samples)
 
     true_patterns = set(tuple(x.cpu().tolist()) for x in target_patterns)
     
@@ -32,8 +28,8 @@ def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_sampl
     total_invalid = sum(invalid_counts.values())
 
     # metrics
-    valid_ratio = total_valid / num_samples
-    invalid_ratio = total_invalid / num_samples
+    validity_ratio = total_valid / num_samples
+    invalidity_ratio = total_invalid / num_samples
     coverage_ratio = len(valid_counts) / len(true_patterns)
 
     valid_probability_distribution = {
@@ -45,8 +41,8 @@ def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_sampl
     
     print(f"\nNumber of generated samples: {num_samples} ")
     print("\nSupport Validity")
-    print(f"Valid samples   :         {total_valid} ({valid_ratio:.4f})")
-    print(f"Invalid samples :       {total_invalid} ({invalid_ratio:.4f})")
+    print(f"Valid samples   :         {total_valid} ({validity_ratio:.4f})")
+    print(f"Invalid samples :       {total_invalid} ({invalidity_ratio:.4f})")
 
     print(f"\nSupport Coverage")
     print(f"Covered valid patterns: {len(valid_counts)}/{len(true_patterns)}  ({coverage_ratio:.4f})")
@@ -57,7 +53,7 @@ def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_sampl
         print(f"Pattern {idx:>2}: {prob:.4f}")
 
 
-def total_variation(G, target_patterns, z_dim, device, num_samples=5000, threshold=0.5):
+def total_variation(G, target_patterns, z_dim, device, num_samples, threshold=0.5):
     """
     Computes total variation distance between the empirical distribution over all 512 patterns
     and the uniform target distribution, penalising both mismatch on valid outcomes
@@ -65,9 +61,7 @@ def total_variation(G, target_patterns, z_dim, device, num_samples=5000, thresho
     """
     G.eval()
 
-    with torch.no_grad():
-        z = torch.randn(num_samples, z_dim, device=device)
-        samples = (G(z) > threshold).float().cpu()
+    num_samples = len(samples)
 
     true_patterns = set(tuple(x.cpu().tolist()) for x in target_patterns)
 
