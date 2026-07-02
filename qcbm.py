@@ -12,8 +12,7 @@ import optax
 import pennylane as qml
 
 from bars_and_stripes import make_bars_and_stripes, represent_as_integers
-from plotting import *
-from evaluation_wgan_gp import evaluate_qcbm, total_variation_qcbm
+from evaluation_metrics import evaluate_qcbm
 
 
 # 32-bit precision
@@ -76,9 +75,8 @@ class QCBM:
 
 
 def construct_circuit(n_qubits=9, n_layers=6):
-    """
-    Build a QCBM circuit returning the full probability distribution.
-    """
+    """Build a QCBM circuit returning the full probability distribution."""
+
     # Quantum simulator for the QCBM circuit
     dev = qml.device("default.qubit", wires=n_qubits)
 
@@ -96,9 +94,8 @@ def construct_circuit(n_qubits=9, n_layers=6):
 
 
 def initialise_weights(n_qubits=9, n_layers=6):
-    """
-    Initialise random weights for the QCBM circuit.
-    """
+    """Initialise random weights for the QCBM circuit."""
+
     w_shape = qml.StronglyEntanglingLayers.shape(
         n_layers=n_layers,
         n_wires=n_qubits,
@@ -191,37 +188,41 @@ def build_sampling_circuit(n_qubits, n_layers):
             ranges=[1] * n_layers,
             wires=range(n_qubits),
         )
-        # Return sampled bitstrings instead of exact probabilities
+        # Sampled bitstrings instead of exact probabilities
         return qml.sample()
 
     return sampling_circuit
 
 
 if __name__ == "__main__":
-    # Basic model configurations
+    # Quantum model configurations
     n_qubits = 9
     n_layers = 6
+
     num_samples = 5000
+    n_pixels = 9
 
-    # Construct the target probability distribution
-    probs = define_and_visualise_target_distributions()
     data = make_bars_and_stripes(3)
+    bitstrings, nums = represent_as_integers(data)
 
-    bitstrings, nums = represent_as_integers()
+    # Target probability distribution
+    probs = np.zeros(2 ** n_pixels)
+    probs[nums] = 1 / len(data)
+
 
     bandwidth = jnp.array([0.25, 0.5, 1])
     space = jnp.arange(2 ** n_qubits)
 
-    # Initialise model parameters and circuit
+    # Quantum circuit and its parameters
     weights = initialise_weights(n_qubits, n_layers)
     circuit = construct_circuit(n_qubits, n_layers)
     jit_circuit = jax.jit(circuit)
 
-    # Build QCBM model
+    # QCBM model
     mmd = MMD(bandwidth, space)
     qcbm = QCBM(jit_circuit, mmd, probs)
 
-    # Define the optimiser
+    # Optimiser
     opt = optax.adam(learning_rate=0.1)
     opt_state = opt.init(weights)
 
@@ -232,4 +233,3 @@ if __name__ == "__main__":
     qcbm_probs = np.array(qcbm.circ(weights))
     sampling_circ = build_sampling_circuit(n_qubits, n_layers)
     evaluate_qcbm(weights, data, sampling_circ, num_samples)
-    #compare_px_and_py(qcbm_probs, probs, nums, bitstrings)

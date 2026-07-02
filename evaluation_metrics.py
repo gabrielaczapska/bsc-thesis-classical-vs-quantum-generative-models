@@ -152,7 +152,7 @@ def evaluate_qcbm(weights, target_patterns, sampling_circuit, num_samples=5000):
 
     true_set = set(true_patterns)
 
-    counts = Counter(tuple(sample.flatten.tolist()) for sample in samples)
+    counts = Counter(tuple(sample.flatten().tolist()) for sample in samples)
 
     valid_counts = {k: v for k, v in counts.items() if k in true_set}
     invalid_counts = {k: v for k, v in counts.items() if k not in true_set}

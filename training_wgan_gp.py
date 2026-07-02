@@ -99,7 +99,7 @@ def train(C,
         z = torch.randn(generator_batch_size, z_dim, device=device)
         fake_samples = G(z)
 
-        # Wasserstein adversarial loss term
+        # Wasserstein adversarial generator loss term
         adv_loss = -C(fake_samples).mean()
 
         # Auxiliary generator loss terms
