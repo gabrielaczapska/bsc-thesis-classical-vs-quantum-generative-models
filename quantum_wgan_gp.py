@@ -10,7 +10,7 @@ import pennylane as qml
 
 from bars_and_stripes import make_bars_and_stripes
 from training_wgan_gp import train
-from evaluation_wgan_gp import evaluate_generated_distribution, total_variation
+from evaluation_metrics import evaluate_generated_distribution, total_variation
 
 
 # Configurations
