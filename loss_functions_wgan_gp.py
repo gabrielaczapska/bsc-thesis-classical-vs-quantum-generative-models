@@ -4,6 +4,9 @@ Loss functions used for training WGAN-GP models on the 3x3 Bars and Stripes data
 
 import torch
 
+seed = 81
+torch.manual_seed(seed)
+
 
 def structure_loss(fake_samples):
     """

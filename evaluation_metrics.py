@@ -11,6 +11,8 @@ import numpy as np
 import torch
 import pennylane as qml
 
+seed = 81
+torch.manual_seed(seed)
 
 def evaluate_generated_distribution(G, target_patterns, z_dim, device, num_samples, threshold=0.5):
     """

@@ -14,6 +14,8 @@ import pennylane as qml
 from bars_and_stripes import make_bars_and_stripes, represent_as_integers
 from evaluation_metrics import evaluate_qcbm
 
+seed = 81
+np.random.seed(seed)
 
 # 32-bit precision
 jax.config.update("jax_enable_x64", False)

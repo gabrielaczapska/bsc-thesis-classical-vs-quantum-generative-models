@@ -10,6 +10,8 @@ from bars_and_stripes import make_bars_and_stripes
 from training_wgan_gp import train
 from evaluation_metrics import evaluate_generated_distribution, total_variation
 
+seed = 81
+torch.manual_seed(seed)
 
 # Configurations
 device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -7,6 +7,8 @@ import torch
 
 from loss_functions_wgan_gp import (gradient_penalty, structure_loss, diversity_loss, uniformity_loss)
 
+seed = 81
+torch.manual_seed(seed)
 
 def sample_real_batch(data, batch_size):
     """
